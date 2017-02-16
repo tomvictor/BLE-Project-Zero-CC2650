@@ -1,7 +1,7 @@
 ******************************************************************************
                   TI ARM Linker PC v16.9.0                     
 ******************************************************************************
->> Linked Thu Feb 16 10:37:08 2017
+>> Linked Thu Feb 16 19:59:34 2017
 
 OUTPUT FILE NAME:   <project_zero_app_cc2650launchxl.out>
 ENTRY POINT SYMBOL: "ResetISR"  address: 00008355
@@ -1450,7 +1450,7 @@ MODULE SUMMARY
        Total:                            556     0         1464   
                                                                   
     C:\Users\Tom\AppData\Local\Temp\
-       054682                            0       0         281    
+       075042                            0       0         281    
     +--+---------------------------------+-------+---------+---------+
        Total:                            0       0         281    
                                                                   
