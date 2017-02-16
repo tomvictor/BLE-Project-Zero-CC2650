@@ -1,5 +1,5 @@
 /******************************************************************************
- * Filename:       Battery_Service.c
+ * Filename:       Location_Service.c
  *
  * Description:    This file contains the implementation of the service.
  *
@@ -60,7 +60,7 @@
 #include "gattservapp.h"
 #include "gapbondmgr.h"
 
-#include "battery_service.h"
+#include "location_service.h"
 
 /*********************************************************************
  * MACROS
@@ -78,16 +78,22 @@
 * GLOBAL VARIABLES
 */
 
-// Battery_Service Service UUID
-CONST uint8_t BatteryServiceUUID[ATT_BT_UUID_SIZE] =
+// Location_Service Service UUID
+CONST uint8_t LocationServiceUUID[ATT_UUID_SIZE] =
 {
-  LO_UINT16(BATTERY_SERVICE_SERV_UUID), HI_UINT16(BATTERY_SERVICE_SERV_UUID)
+  LOCATION_SERVICE_SERV_UUID_BASE128(LOCATION_SERVICE_SERV_UUID)
 };
 
-// Battery_Level UUID
-CONST uint8_t bs_Battery_LevelUUID[ATT_BT_UUID_SIZE] =
+// Latitude UUID
+CONST uint8_t ls_LatitudeUUID[ATT_BT_UUID_SIZE] =
 {
-  LO_UINT16(BS_BATTERY_LEVEL_UUID), HI_UINT16(BS_BATTERY_LEVEL_UUID)
+  LO_UINT16(LS_LATITUDE_UUID), HI_UINT16(LS_LATITUDE_UUID)
+};
+
+// Longitude UUID
+CONST uint8_t ls_LongitudeUUID[ATT_BT_UUID_SIZE] =
+{
+  LO_UINT16(LS_LONGITUDE_UUID), HI_UINT16(LS_LONGITUDE_UUID)
 };
 
 
@@ -95,27 +101,34 @@ CONST uint8_t bs_Battery_LevelUUID[ATT_BT_UUID_SIZE] =
  * LOCAL VARIABLES
  */
 
-static BatteryServiceCBs_t *pAppCBs = NULL;
-static uint8_t bs_icall_rsp_task_id = INVALID_TASK_ID;
+static LocationServiceCBs_t *pAppCBs = NULL;
 
 /*********************************************************************
 * Profile Attributes - variables
 */
 
 // Service declaration
-static CONST gattAttrType_t BatteryServiceDecl = { ATT_BT_UUID_SIZE, BatteryServiceUUID };
+static CONST gattAttrType_t LocationServiceDecl = { ATT_UUID_SIZE, LocationServiceUUID };
 
-// Characteristic "Battery Level" Properties (for declaration)
-static uint8_t bs_Battery_LevelProps = GATT_PROP_NOTIFY | GATT_PROP_READ;
+// Characteristic "Latitude" Properties (for declaration)
+static uint8_t ls_LatitudeProps = GATT_PROP_READ | GATT_PROP_WRITE | GATT_PROP_WRITE_NO_RSP;
 
-// Characteristic "Battery Level" Value variable
-static uint8_t bs_Battery_LevelVal[BS_BATTERY_LEVEL_LEN] = {0};
+// Characteristic "Latitude" Value variable
+static uint8_t ls_LatitudeVal[LS_LATITUDE_LEN] = {0};
 
-// Length of data in characteristic "Battery Level" Value variable, initialized to minimal size.
-static uint16_t bs_Battery_LevelValLen = BS_BATTERY_LEVEL_LEN_MIN;
+// Length of data in characteristic "Latitude" Value variable, initialized to minimal size.
+static uint16_t ls_LatitudeValLen = LS_LATITUDE_LEN_MIN;
 
-// Characteristic "Battery Level" Client Characteristic Configuration Descriptor
-static gattCharCfg_t *bs_Battery_LevelConfig;
+
+
+// Characteristic "Longitude" Properties (for declaration)
+static uint8_t ls_LongitudeProps = GATT_PROP_READ | GATT_PROP_WRITE | GATT_PROP_WRITE_NO_RSP;
+
+// Characteristic "Longitude" Value variable
+static uint8_t ls_LongitudeVal[LS_LONGITUDE_LEN] = {0};
+
+// Length of data in characteristic "Longitude" Value variable, initialized to minimal size.
+static uint16_t ls_LongitudeValLen = LS_LONGITUDE_LEN_MIN;
 
 
 
@@ -123,45 +136,52 @@ static gattCharCfg_t *bs_Battery_LevelConfig;
 * Profile Attributes - Table
 */
 
-static gattAttribute_t Battery_ServiceAttrTbl[] =
+static gattAttribute_t Location_ServiceAttrTbl[] =
 {
-  // Battery_Service Service Declaration
+  // Location_Service Service Declaration
   {
     { ATT_BT_UUID_SIZE, primaryServiceUUID },
     GATT_PERMIT_READ,
     0,
-    (uint8_t *)&BatteryServiceDecl
+    (uint8_t *)&LocationServiceDecl
   },
-    // Battery Level Characteristic Declaration
+    // Latitude Characteristic Declaration
     {
       { ATT_BT_UUID_SIZE, characterUUID },
       GATT_PERMIT_READ,
       0,
-      &bs_Battery_LevelProps
+      &ls_LatitudeProps
     },
-      // Battery Level Characteristic Value
+      // Latitude Characteristic Value
       {
-        { ATT_BT_UUID_SIZE, bs_Battery_LevelUUID },
-        GATT_PERMIT_READ,
+        { ATT_BT_UUID_SIZE, ls_LatitudeUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE | GATT_PERMIT_WRITE,
         0,
-        bs_Battery_LevelVal
+        ls_LatitudeVal
       },
-      // Battery Level CCCD
+    // Longitude Characteristic Declaration
+    {
+      { ATT_BT_UUID_SIZE, characterUUID },
+      GATT_PERMIT_READ,
+      0,
+      &ls_LongitudeProps
+    },
+      // Longitude Characteristic Value
       {
-        { ATT_BT_UUID_SIZE, clientCharCfgUUID },
-        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        { ATT_BT_UUID_SIZE, ls_LongitudeUUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE | GATT_PERMIT_WRITE,
         0,
-        (uint8_t *)&bs_Battery_LevelConfig
+        ls_LongitudeVal
       },
 };
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
-static bStatus_t Battery_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
+static bStatus_t Location_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                            uint8_t *pValue, uint16_t *pLen, uint16_t offset,
                                            uint16_t maxLen, uint8_t method );
-static bStatus_t Battery_Service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
+static bStatus_t Location_Service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                             uint8_t *pValue, uint16_t len, uint16_t offset,
                                             uint8_t method );
 
@@ -169,10 +189,10 @@ static bStatus_t Battery_Service_WriteAttrCB( uint16_t connHandle, gattAttribute
  * PROFILE CALLBACKS
  */
 // Simple Profile Service Callbacks
-CONST gattServiceCBs_t Battery_ServiceCBs =
+CONST gattServiceCBs_t Location_ServiceCBs =
 {
-  Battery_Service_ReadAttrCB,  // Read callback function pointer
-  Battery_Service_WriteAttrCB, // Write callback function pointer
+  Location_Service_ReadAttrCB,  // Read callback function pointer
+  Location_Service_WriteAttrCB, // Write callback function pointer
   NULL                       // Authorization callback function pointer
 };
 
@@ -181,42 +201,31 @@ CONST gattServiceCBs_t Battery_ServiceCBs =
 */
 
 /*
- * BatteryService_AddService- Initializes the BatteryService service by registering
+ * LocationService_AddService- Initializes the LocationService service by registering
  *          GATT attributes with the GATT server.
  *
  *    rspTaskId - The ICall Task Id that should receive responses for Indications.
  */
-extern bStatus_t BatteryService_AddService( uint8_t rspTaskId )
+extern bStatus_t LocationService_AddService( uint8_t rspTaskId )
 {
   uint8_t status;
 
-  // Allocate Client Characteristic Configuration table
-  bs_Battery_LevelConfig = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) * linkDBNumConns );
-  if ( bs_Battery_LevelConfig == NULL )
-  {
-    return ( bleMemAllocError );
-  }
-
-  // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, bs_Battery_LevelConfig );
   // Register GATT attribute list and CBs with GATT Server App
-  status = GATTServApp_RegisterService( Battery_ServiceAttrTbl,
-                                        GATT_NUM_ATTRS( Battery_ServiceAttrTbl ),
+  status = GATTServApp_RegisterService( Location_ServiceAttrTbl,
+                                        GATT_NUM_ATTRS( Location_ServiceAttrTbl ),
                                         GATT_MAX_ENCRYPT_KEY_SIZE,
-                                        &Battery_ServiceCBs );
-  Log_info1("Registered service, %d attributes", (IArg)GATT_NUM_ATTRS( Battery_ServiceAttrTbl ));
-  bs_icall_rsp_task_id = rspTaskId;
-
+                                        &Location_ServiceCBs );
+  Log_info1("Registered service, %d attributes", (IArg)GATT_NUM_ATTRS( Location_ServiceAttrTbl ));
   return ( status );
 }
 
 /*
- * BatteryService_RegisterAppCBs - Registers the application callback function.
+ * LocationService_RegisterAppCBs - Registers the application callback function.
  *                    Only call this function once.
  *
  *    appCallbacks - pointer to application callbacks.
  */
-bStatus_t BatteryService_RegisterAppCBs( BatteryServiceCBs_t *appCallbacks )
+bStatus_t LocationService_RegisterAppCBs( LocationServiceCBs_t *appCallbacks )
 {
   if ( appCallbacks )
   {
@@ -232,7 +241,7 @@ bStatus_t BatteryService_RegisterAppCBs( BatteryServiceCBs_t *appCallbacks )
 }
 
 /*
- * BatteryService_SetParameter - Set a BatteryService parameter.
+ * LocationService_SetParameter - Set a LocationService parameter.
  *
  *    param - Profile parameter ID
  *    len   - length of data to write
@@ -241,28 +250,30 @@ bStatus_t BatteryService_RegisterAppCBs( BatteryServiceCBs_t *appCallbacks )
  *            data type (example: data type of uint16_t will be cast to
  *            uint16_t pointer).
  */
-bStatus_t BatteryService_SetParameter( uint8_t param, uint16_t len, void *value )
+bStatus_t LocationService_SetParameter( uint8_t param, uint16_t len, void *value )
 {
   bStatus_t ret = SUCCESS;
   uint8_t  *pAttrVal;
   uint16_t *pValLen;
   uint16_t valMinLen;
   uint16_t valMaxLen;
-  uint8_t sendNotiInd = FALSE;
-  gattCharCfg_t *attrConfig;
-  uint8_t needAuth;
 
   switch ( param )
   {
-    case BS_BATTERY_LEVEL_ID:
-      pAttrVal  =  bs_Battery_LevelVal;
-      pValLen   = &bs_Battery_LevelValLen;
-      valMinLen =  BS_BATTERY_LEVEL_LEN_MIN;
-      valMaxLen =  BS_BATTERY_LEVEL_LEN;
-      sendNotiInd = TRUE;
-      attrConfig  = bs_Battery_LevelConfig;
-      needAuth    = FALSE; // Change if authenticated link is required for sending.
-      Log_info2("SetParameter : %s len: %d", (IArg)"Battery_Level", (IArg)len);
+    case LS_LATITUDE_ID:
+      pAttrVal  =  ls_LatitudeVal;
+      pValLen   = &ls_LatitudeValLen;
+      valMinLen =  LS_LATITUDE_LEN_MIN;
+      valMaxLen =  LS_LATITUDE_LEN;
+      Log_info2("SetParameter : %s len: %d", (IArg)"Latitude", (IArg)len);
+      break;
+
+    case LS_LONGITUDE_ID:
+      pAttrVal  =  ls_LongitudeVal;
+      pValLen   = &ls_LongitudeValLen;
+      valMinLen =  LS_LONGITUDE_LEN_MIN;
+      valMaxLen =  LS_LONGITUDE_LEN;
+      Log_info2("SetParameter : %s len: %d", (IArg)"Longitude", (IArg)len);
       break;
 
     default:
@@ -275,18 +286,6 @@ bStatus_t BatteryService_SetParameter( uint8_t param, uint16_t len, void *value 
   {
     memcpy(pAttrVal, value, len);
     *pValLen = len; // Update length for read and get.
-
-    if (sendNotiInd)
-    {
-      Log_info2("Transmitting noti/ind- connHandle %d, %s", (IArg)attrConfig[0].connHandle,
-                                                    (IArg)( (attrConfig[0].value==0)?"Noti/ind disabled":
-                                                    (attrConfig[0].value==1)?"Notification enabled":
-                                                     "Indication enabled" ) );
-      // Try to send notification.
-      GATTServApp_ProcessCharCfg( attrConfig, pAttrVal, needAuth,
-                                  Battery_ServiceAttrTbl, GATT_NUM_ATTRS( Battery_ServiceAttrTbl ),
-                                  bs_icall_rsp_task_id,  Battery_Service_ReadAttrCB);
-    }
   }
   else
   {
@@ -299,7 +298,7 @@ bStatus_t BatteryService_SetParameter( uint8_t param, uint16_t len, void *value 
 
 
 /*
- * BatteryService_GetParameter - Get a BatteryService parameter.
+ * LocationService_GetParameter - Get a LocationService parameter.
  *
  *    param - Profile parameter ID
  *    len   - pointer to a variable that contains the maximum length that can be written to *value.
@@ -309,11 +308,23 @@ bStatus_t BatteryService_SetParameter( uint8_t param, uint16_t len, void *value 
  *            data type (example: data type of uint16_t will be cast to
  *            uint16_t pointer).
  */
-bStatus_t BatteryService_GetParameter( uint8_t param, uint16_t *len, void *value )
+bStatus_t LocationService_GetParameter( uint8_t param, uint16_t *len, void *value )
 {
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
+    case LS_LATITUDE_ID:
+      *len = MIN(*len, ls_LatitudeValLen);
+      memcpy(value, ls_LatitudeVal, *len);
+      Log_info2("GetParameter : %s returning %d bytes", (IArg)"Latitude", (IArg)*len);
+      break;
+
+    case LS_LONGITUDE_ID:
+      *len = MIN(*len, ls_LongitudeValLen);
+      memcpy(value, ls_LongitudeVal, *len);
+      Log_info2("GetParameter : %s returning %d bytes", (IArg)"Longitude", (IArg)*len);
+      break;
+
     default:
       Log_error1("GetParameter: Parameter #%d not valid.", (IArg)param);
       ret = INVALIDPARAMETER;
@@ -324,7 +335,7 @@ bStatus_t BatteryService_GetParameter( uint8_t param, uint16_t *len, void *value
 
 /*********************************************************************
  * @internal
- * @fn          Battery_Service_findCharParamId
+ * @fn          Location_Service_findCharParamId
  *
  * @brief       Find the logical param id of an attribute in the service's attr table.
  *
@@ -333,24 +344,28 @@ bStatus_t BatteryService_GetParameter( uint8_t param, uint16_t *len, void *value
  *
  * @param       pAttr - pointer to attribute
  *
- * @return      uint8_t paramID (ref Battery_Service.h) or 0xFF if not found.
+ * @return      uint8_t paramID (ref Location_Service.h) or 0xFF if not found.
  */
-static uint8_t Battery_Service_findCharParamId(gattAttribute_t *pAttr)
+static uint8_t Location_Service_findCharParamId(gattAttribute_t *pAttr)
 {
   // Is this a Client Characteristic Configuration Descriptor?
   if (ATT_BT_UUID_SIZE == pAttr->type.len && GATT_CLIENT_CHAR_CFG_UUID == *(uint16_t *)pAttr->type.uuid)
-    return Battery_Service_findCharParamId(pAttr - 1); // Assume the value attribute precedes CCCD and recurse
+    return Location_Service_findCharParamId(pAttr - 1); // Assume the value attribute precedes CCCD and recurse
 
-  // Is this attribute in "Battery Level"?
-  else if ( ATT_BT_UUID_SIZE == pAttr->type.len && !memcmp(pAttr->type.uuid, bs_Battery_LevelUUID, pAttr->type.len))
-    return BS_BATTERY_LEVEL_ID;
+  // Is this attribute in "Latitude"?
+  else if ( ATT_BT_UUID_SIZE == pAttr->type.len && !memcmp(pAttr->type.uuid, ls_LatitudeUUID, pAttr->type.len))
+    return LS_LATITUDE_ID;
+
+  // Is this attribute in "Longitude"?
+  else if ( ATT_BT_UUID_SIZE == pAttr->type.len && !memcmp(pAttr->type.uuid, ls_LongitudeUUID, pAttr->type.len))
+    return LS_LONGITUDE_ID;
 
   else
     return 0xFF; // Not found. Return invalid.
 }
 
 /*********************************************************************
- * @fn          Battery_Service_ReadAttrCB
+ * @fn          Location_Service_ReadAttrCB
  *
  * @brief       Read an attribute.
  *
@@ -364,7 +379,7 @@ static uint8_t Battery_Service_findCharParamId(gattAttribute_t *pAttr)
  *
  * @return      SUCCESS, blePending or Failure
  */
-static bStatus_t Battery_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
+static bStatus_t Location_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                        uint8_t *pValue, uint16_t *pLen, uint16_t offset,
                                        uint16_t maxLen, uint8_t method )
 {
@@ -373,18 +388,29 @@ static bStatus_t Battery_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_
   uint8_t paramID = 0xFF;
 
   // Find settings for the characteristic to be read.
-  paramID = Battery_Service_findCharParamId( pAttr );
+  paramID = Location_Service_findCharParamId( pAttr );
   switch ( paramID )
   {
-    case BS_BATTERY_LEVEL_ID:
-      valueLen = bs_Battery_LevelValLen;
+    case LS_LATITUDE_ID:
+      valueLen = ls_LatitudeValLen;
 
       Log_info4("ReadAttrCB : %s connHandle: %d offset: %d method: 0x%02x",
-                 (IArg)"Battery_Level",
+                 (IArg)"Latitude",
                  (IArg)connHandle,
                  (IArg)offset,
                  (IArg)method);
-      /* Other considerations for Battery Level can be inserted here */
+      /* Other considerations for Latitude can be inserted here */
+      break;
+
+    case LS_LONGITUDE_ID:
+      valueLen = ls_LongitudeValLen;
+
+      Log_info4("ReadAttrCB : %s connHandle: %d offset: %d method: 0x%02x",
+                 (IArg)"Longitude",
+                 (IArg)connHandle,
+                 (IArg)offset,
+                 (IArg)method);
+      /* Other considerations for Longitude can be inserted here */
       break;
 
     default:
@@ -407,7 +433,7 @@ static bStatus_t Battery_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_
 }
 
 /*********************************************************************
- * @fn      Battery_Service_WriteAttrCB
+ * @fn      Location_Service_WriteAttrCB
  *
  * @brief   Validate attribute data prior to a write operation
  *
@@ -420,33 +446,96 @@ static bStatus_t Battery_Service_ReadAttrCB( uint16_t connHandle, gattAttribute_
  *
  * @return  SUCCESS, blePending or Failure
  */
-static bStatus_t Battery_Service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
+static bStatus_t Location_Service_WriteAttrCB( uint16_t connHandle, gattAttribute_t *pAttr,
                                         uint8_t *pValue, uint16_t len, uint16_t offset,
                                         uint8_t method )
 {
   bStatus_t status  = SUCCESS;
   uint8_t   paramID = 0xFF;
-
-  // See if request is regarding a Client Characterisic Configuration
-  if (ATT_BT_UUID_SIZE == pAttr->type.len && GATT_CLIENT_CHAR_CFG_UUID == *(uint16_t *)pAttr->type.uuid)
-  {
-    // Allow notification and indication, but do not check if really allowed per CCCD.
-    status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
-                                             offset, GATT_CLIENT_CFG_NOTIFY |
-                                                     GATT_CLIENT_CFG_INDICATE );
-    if (SUCCESS == status && pAppCBs && pAppCBs->pfnCfgChangeCb)
-       pAppCBs->pfnCfgChangeCb( connHandle, BATTERY_SERVICE_SERV_UUID,
-                                Battery_Service_findCharParamId(pAttr), pValue, len );
-
-     return status;
-  }
+  uint8_t   changeParamID = 0xFF;
+  uint16_t writeLenMin;
+  uint16_t writeLenMax;
+  uint16_t *pValueLenVar;
 
   // Find settings for the characteristic to be written.
-  paramID = Battery_Service_findCharParamId( pAttr );
+  paramID = Location_Service_findCharParamId( pAttr );
   switch ( paramID )
   {
+    case LS_LATITUDE_ID:
+      writeLenMin  = LS_LATITUDE_LEN_MIN;
+      writeLenMax  = LS_LATITUDE_LEN;
+      pValueLenVar = &ls_LatitudeValLen;
+
+      Log_info5("WriteAttrCB : %s connHandle(%d) len(%d) offset(%d) method(0x%02x)",
+                 (IArg)"Latitude",
+                 (IArg)connHandle,
+                 (IArg)len,
+                 (IArg)offset,
+                 (IArg)method);
+      /* Other considerations for Latitude can be inserted here */
+      break;
+
+    case LS_LONGITUDE_ID:
+      writeLenMin  = LS_LONGITUDE_LEN_MIN;
+      writeLenMax  = LS_LONGITUDE_LEN;
+      pValueLenVar = &ls_LongitudeValLen;
+
+      Log_info5("WriteAttrCB : %s connHandle(%d) len(%d) offset(%d) method(0x%02x)",
+                 (IArg)"Longitude",
+                 (IArg)connHandle,
+                 (IArg)len,
+                 (IArg)offset,
+                 (IArg)method);
+      /* Other considerations for Longitude can be inserted here */
+      break;
+
     default:
       Log_error0("Attribute was not found.");
       return ATT_ERR_ATTR_NOT_FOUND;
   }
+  // Check whether the length is within bounds.
+  if ( offset >= writeLenMax )
+  {
+    Log_error0("An invalid offset was requested.");
+    status = ATT_ERR_INVALID_OFFSET;
+  }
+  else if ( offset + len > writeLenMax )
+  {
+    Log_error0("Invalid value length was received.");
+    status = ATT_ERR_INVALID_VALUE_SIZE;
+  }
+  else if ( offset + len < writeLenMin && ( method == ATT_EXECUTE_WRITE_REQ || method == ATT_WRITE_REQ ) )
+  {
+    // Refuse writes that are lower than minimum.
+    // Note: Cannot determine if a Reliable Write (to several chars) is finished, so those will
+    //       only be refused if this attribute is the last in the queue (method is execute).
+    //       Otherwise, reliable writes are accepted and parsed piecemeal.
+    Log_error0("Invalid value length was received.");
+    status = ATT_ERR_INVALID_VALUE_SIZE;
+  }
+  else
+  {
+    // Copy pValue into the variable we point to from the attribute table.
+    memcpy(pAttr->pValue + offset, pValue, len);
+
+    // Only notify application and update length if enough data is written.
+    //
+    // Note: If reliable writes are used (meaning several attributes are written to using ATT PrepareWrite),
+    //       the application will get a callback for every write with an offset + len larger than _LEN_MIN.
+    // Note: For Long Writes (ATT Prepare + Execute towards only one attribute) only one callback will be issued,
+    //       because the write fragments are concatenated before being sent here.
+    if ( offset + len >= writeLenMin )
+    {
+      changeParamID = paramID;
+      *pValueLenVar = offset + len; // Update data length.
+    }
+  }
+
+  // Let the application know something changed (if it did) by using the
+  // callback it registered earlier (if it did).
+  if (changeParamID != 0xFF)
+    if ( pAppCBs && pAppCBs->pfnChangeCb )
+      pAppCBs->pfnChangeCb( connHandle, LOCATION_SERVICE_SERV_UUID, paramID, pValue, len+offset ); // Call app function from stack task context.
+
+  return status;
 }

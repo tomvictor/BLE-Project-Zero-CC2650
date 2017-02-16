@@ -216,6 +216,7 @@ Application/project_zero_bds.obj: c:/ti/tirtos_cc13xx_cc26xx_2_20_01_08/products
 Application/project_zero_bds.obj: ../Application/project_zero.h
 Application/project_zero_bds.obj: ../Application/led_service.h
 Application/project_zero_bds.obj: ../Application/battery_service.h
+Application/project_zero_bds.obj: ../Application/location_service.h
 
 ../Application/project_zero_bds.c: 
 C:/ti/ccsv7/tools/compiler/ti-cgt-arm_16.9.0.LTS/include/string.h: 
@@ -433,3 +434,4 @@ c:/ti/tirtos_cc13xx_cc26xx_2_20_01_08/products/cc26xxware_2_24_02_17393/inc/hw_g
 ../Application/project_zero.h: 
 ../Application/led_service.h: 
 ../Application/battery_service.h: 
+../Application/location_service.h: 

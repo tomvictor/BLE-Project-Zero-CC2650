@@ -12,6 +12,7 @@ GEN_CMDS__FLAG := -l"configPkg/linker.cmd"
 ORDERED_OBJS += \
 "./Application/battery_service.obj" \
 "./Application/led_service.obj" \
+"./Application/location_service.obj" \
 "./Application/project_zero_bds.obj" \
 "./Application/util.obj" \
 "./Board/CC2650_LAUNCHXL.obj" \
@@ -197,8 +198,8 @@ project_zero_app_cc2650launchxl.hex: $(EXE_OUTPUTS)
 clean:
 	-$(RM) $(GEN_CMDS__QUOTED)$(GEN_MISC_FILES__QUOTED)$(BIN_OUTPUTS__QUOTED)$(GEN_FILES__QUOTED)$(EXE_OUTPUTS__QUOTED)$(GEN_OPTS__QUOTED)
 	-$(RMDIR) $(GEN_MISC_DIRS__QUOTED)
-	-$(RM) "Application\battery_service.obj" "Application\led_service.obj" "Application\project_zero_bds.obj" "Application\util.obj" "Board\CC2650_LAUNCHXL.obj" "Drivers\ECC\ECCROMCC26XX.obj" "Drivers\TRNG\TRNGCC26XX.obj" "ICall\icall.obj" "ICall\icall_cc2650.obj" "ICallBLE\ble_user_config.obj" "ICallBLE\icall_api.obj" "PROFILES\devinfoservice.obj" "PROFILES\gatt_uuid.obj" "PROFILES\gattservapp_util.obj" "PROFILES\peripheral.obj" "Startup\ccfg_app_ble.obj" "Startup\main.obj" "Utils\uart_logs.obj" 
-	-$(RM) "Application\battery_service.d" "Application\led_service.d" "Application\project_zero_bds.d" "Application\util.d" "Board\CC2650_LAUNCHXL.d" "Drivers\ECC\ECCROMCC26XX.d" "Drivers\TRNG\TRNGCC26XX.d" "ICall\icall.d" "ICall\icall_cc2650.d" "ICallBLE\ble_user_config.d" "ICallBLE\icall_api.d" "PROFILES\devinfoservice.d" "PROFILES\gatt_uuid.d" "PROFILES\gattservapp_util.d" "PROFILES\peripheral.d" "Startup\ccfg_app_ble.d" "Startup\main.d" "Utils\uart_logs.d" 
+	-$(RM) "Application\battery_service.obj" "Application\led_service.obj" "Application\location_service.obj" "Application\project_zero_bds.obj" "Application\util.obj" "Board\CC2650_LAUNCHXL.obj" "Drivers\ECC\ECCROMCC26XX.obj" "Drivers\TRNG\TRNGCC26XX.obj" "ICall\icall.obj" "ICall\icall_cc2650.obj" "ICallBLE\ble_user_config.obj" "ICallBLE\icall_api.obj" "PROFILES\devinfoservice.obj" "PROFILES\gatt_uuid.obj" "PROFILES\gattservapp_util.obj" "PROFILES\peripheral.obj" "Startup\ccfg_app_ble.obj" "Startup\main.obj" "Utils\uart_logs.obj" 
+	-$(RM) "Application\battery_service.d" "Application\led_service.d" "Application\location_service.d" "Application\project_zero_bds.d" "Application\util.d" "Board\CC2650_LAUNCHXL.d" "Drivers\ECC\ECCROMCC26XX.d" "Drivers\TRNG\TRNGCC26XX.d" "ICall\icall.d" "ICall\icall_cc2650.d" "ICallBLE\ble_user_config.d" "ICallBLE\icall_api.d" "PROFILES\devinfoservice.d" "PROFILES\gatt_uuid.d" "PROFILES\gattservapp_util.d" "PROFILES\peripheral.d" "Startup\ccfg_app_ble.d" "Startup\main.d" "Utils\uart_logs.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 
